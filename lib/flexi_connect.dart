@@ -23,7 +23,7 @@ class FlexiSignal {
 
   late HubConnection _connection;
 
-  List<InvokeModel> _invodeModel = [];
+  final List<InvokeModel> _invokeModel = [];
   final StreamController<List<Object?>?> _listenArgumentController = StreamController.broadcast();
   Stream<List<Object?>?> get argumentStream => _listenArgumentController.stream;
   Stream<HubConnectionState> get stateStream => _connection.stateStream;
@@ -49,15 +49,15 @@ class FlexiSignal {
   }
 
   void _listenInvoke() async {
-    if (_invodeModel.isNotEmpty) {
-      for (var element in _invodeModel) {
+    if (_invokeModel.isNotEmpty) {
+      for (var element in _invokeModel) {
         if (element.methodName != null && (element.methodName?.isNotEmpty ?? false) && element.arguments != null && (element.arguments?.isNotEmpty ?? false)) {
           await _connection.invoke("${element.methodName}", args: element.arguments);
         }
       }
 
-      for (var element in _invodeModel) {
-        if (element.methodName != null && (element.methodName?.isNotEmpty ?? false) && element.arguments != null && (element.arguments?.isNotEmpty ?? false)) {
+      for (var element in _invokeModel) {
+        if (element.listenMethodName != null && (element.listenMethodName?.isNotEmpty ?? false)) {
           _connection.on("${element.methodName}", (arguments) => _listenArgumentController.sink.add(arguments));
         }
       }
@@ -65,6 +65,12 @@ class FlexiSignal {
   }
 
   void on(String methodName, Function(List<Object?>?) listen) => _connection.on(methodName, listen);
+  void off(String methodName, {Function(List<Object?>?)? method}) => _connection.off(methodName, method: method);
+  Stream<Object?> stream(String methodName, List<Object> args) => _connection.stream(methodName, args);
+  Future<Object?> invoke(String methodName, {List<Object>? args}) async => await _connection.invoke(methodName, args: args);
+  Future<void> send(String methodName, {List<Object>? args}) async => await _connection.send(methodName, args: args);
+
+
 
   void emit(String methodName, String receiverMethodName, String message) async {
     if (_state == HubConnectionState.Disconnected) {
@@ -89,7 +95,7 @@ class FlexiSignal {
   void dispose() {
     _connection.stop();
     connectionState.dispose();
-    _invodeModel.clear();
+    _invokeModel.clear();
     _listenArgumentController.close();
   }
 }
