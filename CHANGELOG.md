@@ -7,3 +7,8 @@
 
 - FlexiSignal method modified
 - Additional methods added
+
+## 0.0.3
+
+- Continuous reconnection disabled
+- Logging added
