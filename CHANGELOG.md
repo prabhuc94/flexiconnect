@@ -12,3 +12,6 @@
 
 - Continuous reconnection disabled
 - Logging added
+
+## 0.0.4
+- PeerJs included
