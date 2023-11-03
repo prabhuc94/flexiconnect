@@ -4,7 +4,7 @@ import 'dart:async';
 import 'package:flexi_connect/console.dart';
 import 'package:flexi_connect/flexi_signal_model.dart';
 import 'package:flutter/foundation.dart';
-import 'package:signalr_netcore/signalr_client.dart';
+import 'package:netcore_signalr/signalr_client.dart';
 
 class SignalR {
   final String connectionUrl;

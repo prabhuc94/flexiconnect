@@ -11,14 +11,12 @@ dependencies:
   flutter:
     sdk: flutter
 
-  signalr_netcore: ^1.3.6
+  netcore_signalr: ^0.0.1
   logger: ^2.0.2+1
   mixin_logger: ^0.0.6
   flexipeer: ^0.0.4
-
-dependency_overrides:
-  http: ^1.1.0
-  uuid: ^3.0.7
+  events_emitter: ^0.5.2
+  flutter_webrtc: ^0.9.46
 
 dev_dependencies:
   flutter_test:
