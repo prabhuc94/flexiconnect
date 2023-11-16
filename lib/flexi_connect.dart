@@ -1,7 +1,6 @@
 library flexi_connect;
 
 import 'dart:async';
-import 'dart:math';
 import 'package:flexi_connect/console.dart';
 import 'package:flexi_connect/flexi_signal_model.dart';
 import 'package:flutter/foundation.dart';
@@ -75,7 +74,10 @@ class SignalR {
       });
   }
 
-  Future<void>? reconnect() async => await _connection.start();
+  Future<void>? reconnect() async {
+    await _connection.stop();
+    await _connection.start();
+  }
 
   void _listenInvoke() async {
     if (_invokeModel.isNotEmpty) {
@@ -111,17 +113,28 @@ class SignalR {
   Stream<Object?> stream(String methodName, List<Object> args) =>
       _connection.stream(methodName, args);
 
-  Future<Object?> invoke(String methodName, {List<Object>? args}) async =>
+  Future<Object?> invoke(String methodName, {List<Object>? args}) async {
+    if (_state == HubConnectionState.Connected) {
       await _connection.invoke(methodName, args: args);
+    } else {
+      onError?.call("Connection not in connected state");
+    }
+  }
 
-  Future<void> send(String methodName, {List<Object>? args}) async =>
+  Future<void> send(String methodName, {List<Object>? args}) async {
+    if (_state == HubConnectionState.Connected) {
       await _connection.send(methodName, args: args);
+    } else {
+      onError?.call("Connection not in connected state");
+    }
+  }
 
   void emit(
       String methodName, String receiverMethodName, String message) async {
     if (_state == HubConnectionState.Connected) {
       await _connection.invoke(methodName, args: [receiverMethodName, message]);
     } else {
+      onError?.call("Connection not in connected state");
       console.e("Connection not in Connected state [${_state?.name}]");
     }
   }

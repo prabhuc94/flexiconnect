@@ -19,3 +19,9 @@
 ## 0.0.5
 - Modified init method
 - AutoReconnect enabled
+
+## 0.0.6
+- Conditions added
+
+## 0.0.7
+- Peer function modified

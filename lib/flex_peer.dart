@@ -11,6 +11,7 @@ enum Peer {
   call,
   receive,
   callClose,
+  stream,
 }
 
 class PeerJs extends StreamEventEmitter {
@@ -63,7 +64,7 @@ class PeerJs extends StreamEventEmitter {
 
   void _peerMediaConnection(MediaConnection? event) {
     try {
-      _emit(type: Peer.call, data: event);
+      _emit<MediaConnection?>(type: Peer.receive, data: event);
     } catch (e) {
       _peerError(e);
     }
@@ -83,7 +84,7 @@ class PeerJs extends StreamEventEmitter {
     if (_connections[peerID] != null) {
       var connection = _connections[peerID];
       if (connection is MediaConnection) {
-        _emit(type: Peer.call, data: connection);
+        _emit<MediaConnection>(type: Peer.call, data: connection);
         _onListenCall(connection);
       }
     }
@@ -104,7 +105,7 @@ class PeerJs extends StreamEventEmitter {
       event
         ..on<MediaStream>('stream').listen((event) {
           if (call) {
-            _emit(type: Peer.receive, data: event);
+            _emit(type: Peer.stream, data: event);
           }
         })
         ..on<dynamic>('error').listen((event) => _emit(type: Peer.error, data: event))
