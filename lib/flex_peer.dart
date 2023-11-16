@@ -46,6 +46,8 @@ class PeerJs extends StreamEventEmitter {
 
   bool get isDisposed => _peerService.destroyed;
 
+  bool get isConnected => _peerService.open;
+
   void _listen() {
     try {
       _peerService

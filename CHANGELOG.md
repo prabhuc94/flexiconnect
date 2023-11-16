@@ -25,3 +25,6 @@
 
 ## 0.0.7
 - Peer function modified
+
+## 0.0.8
+- Peer open bool added

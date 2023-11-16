@@ -1,6 +1,6 @@
 name: flexi_connect
 description: A new SIGNALR & PEER
-version: 0.0.7
+version: 0.0.8
 homepage: https://github.com/prabhuc94/flexiconnect
 
 environment:
