@@ -15,3 +15,7 @@
 
 ## 0.0.4
 - PeerJs included
+
+## 0.0.5
+- Modified init method
+- AutoReconnect enabled

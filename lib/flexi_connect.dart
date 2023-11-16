@@ -1,6 +1,7 @@
 library flexi_connect;
 
 import 'dart:async';
+import 'dart:math';
 import 'package:flexi_connect/console.dart';
 import 'package:flexi_connect/flexi_signal_model.dart';
 import 'package:flutter/foundation.dart';
@@ -15,69 +16,109 @@ class SignalR {
       {required this.connectionUrl,
       List<int> retryDelays = DEFAULT_RETRY_DELAYS,
       HttpConnectionOptions? options,
-      HttpTransportType? transportType}) {
+      HttpTransportType? transportType, bool autoReconnect = false}) {
     _connection = HubConnectionBuilder()
         .withUrl(connectionUrl, options: options, transportType: transportType)
         .withAutomaticReconnect(retryDelays: retryDelays)
         .build();
+    if (autoReconnect) {
+      _initTimer();
+    }
   }
+
+  void _initTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(minutes: 1), (timer) async {
+      if (_connection.state != HubConnectionState.Connected || _connection.state != HubConnectionState.Connecting) {
+        await reconnect();
+      }
+    });
+  }
+
+  Timer? _timer;
 
   late HubConnection _connection;
 
   final List<InvokeModel> _invokeModel = [];
-  final StreamController<List<Object?>?> _listenArgumentController = StreamController.broadcast();
+  final StreamController<List<Object?>?> _listenArgumentController =
+      StreamController.broadcast();
+
   Stream<List<Object?>?> get argumentStream => _listenArgumentController.stream;
+
   Stream<HubConnectionState> get stateStream => _connection.stateStream;
-  ValueNotifier<HubConnectionState?> connectionState = ValueNotifier(HubConnectionState.Disconnected);
+  ValueNotifier<HubConnectionState?> connectionState =
+      ValueNotifier(HubConnectionState.Disconnected);
+
   HubConnectionState? get _state => _connection.state;
 
-  void init() async {
-    await _connection.start();
-    _listenConnection();
+  Function(dynamic)? onError;
+
+  void init() {
+    _connection
+      ..onclose(({error}) {
+        if (error != null) {
+          console.e("Close error $error", time: DateTime.now());
+          reconnect();
+        } else {
+          console.i("Connection closed without an error.",
+              time: DateTime.now());
+        }
+      })
+      ..onreconnecting(({error}) {
+        console.e("Reconnecting error $error");
+      })
+      ..onreconnected(({connectionId}) {
+        console.e("Reconnected Id $connectionId");
+      })
+      ..start()?.catchError((e){
+        console.e("Connecting error $e");
+      });
   }
 
   Future<void>? reconnect() async => await _connection.start();
 
-  void _listenConnection() {
-    _connection
-      ..onclose(({error}) {
-        if (error != null) {
-          console.e(error, time: DateTime.now());
-          reconnect();
-        } else {
-          console.i("Connection closed without an error.", time: DateTime.now());
-        }
-      })
-      ..onreconnecting(({error}) {})
-      ..onreconnected(({connectionId}) {});
-  }
-
   void _listenInvoke() async {
     if (_invokeModel.isNotEmpty) {
       for (var element in _invokeModel) {
-        if (element.methodName != null && (element.methodName?.isNotEmpty ?? false) && element.arguments != null && (element.arguments?.isNotEmpty ?? false)) {
-          await _connection.invoke("${element.methodName}", args: element.arguments);
+        if (element.methodName != null &&
+            (element.methodName?.isNotEmpty ?? false) &&
+            element.arguments != null &&
+            (element.arguments?.isNotEmpty ?? false)) {
+          await _connection.invoke("${element.methodName}",
+              args: element.arguments).catchError((e) => onError?.call(e));
         }
       }
 
       for (var element in _invokeModel) {
-        if (element.listenMethodName != null && (element.listenMethodName?.isNotEmpty ?? false)) {
-          _connection.on("${element.methodName}", (arguments) => _listenArgumentController.sink.add(arguments));
+        if (element.listenMethodName != null &&
+            (element.listenMethodName?.isNotEmpty ?? false)) {
+          _connection.on("${element.methodName}",
+              (arguments) => _listenArgumentController.sink.add(arguments));
         }
       }
     }
   }
 
-  void onClose(void Function({Exception? error}) listen) => _connection.onclose(listen);
-  void on(String methodName, Function(List<Object?>?) listen) => _connection.on(methodName, listen);
-  void off(String methodName, {Function(List<Object?>?)? method}) => _connection.off(methodName, method: method);
-  Stream<Object?> stream(String methodName, List<Object> args) => _connection.stream(methodName, args);
-  Future<Object?> invoke(String methodName, {List<Object>? args}) async => await _connection.invoke(methodName, args: args);
-  Future<void> send(String methodName, {List<Object>? args}) async => await _connection.send(methodName, args: args);
+  void onClose(void Function({Exception? error}) listen) =>
+      _connection.onclose(listen);
 
+  void on(String methodName, Function(List<Object?>?) listen) =>
+      _connection.on(methodName, listen);
 
+  void off(String methodName, {Function(List<Object?>?)? method}) =>
+      _connection.off(methodName, method: method);
 
-  void emit(String methodName, String receiverMethodName, String message) async {
+  Stream<Object?> stream(String methodName, List<Object> args) =>
+      _connection.stream(methodName, args);
+
+  Future<Object?> invoke(String methodName, {List<Object>? args}) async =>
+      await _connection.invoke(methodName, args: args);
+
+  Future<void> send(String methodName, {List<Object>? args}) async =>
+      await _connection.send(methodName, args: args);
+
+  void emit(
+      String methodName, String receiverMethodName, String message) async {
     if (_state == HubConnectionState.Connected) {
       await _connection.invoke(methodName, args: [receiverMethodName, message]);
     } else {
@@ -94,6 +135,7 @@ class SignalR {
   }
 
   void dispose() {
+    _timer?.cancel();
     _connection.stop();
     connectionState.dispose();
     _invokeModel.clear();
