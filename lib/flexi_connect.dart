@@ -20,6 +20,8 @@ class SignalR {
         .withUrl(connectionUrl, options: options, transportType: transportType)
         .withAutomaticReconnect(retryDelays: retryDelays)
         .build();
+    _connection.keepAliveIntervalInMilliseconds = const Duration(minutes: 1).inMilliseconds;
+    _connection.serverTimeoutInMilliseconds = const Duration(minutes: 2).inMilliseconds;
     if (autoReconnect) {
       _initTimer();
     }

@@ -28,3 +28,6 @@
 
 ## 0.0.8
 - Peer open bool added
+
+## 0.0.9
+- Timeout increased
