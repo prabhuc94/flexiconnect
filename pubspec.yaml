@@ -1,6 +1,6 @@
 name: flexi_connect
 description: A new SIGNALR & PEER
-version: 0.0.9
+version: 0.0.10
 homepage: https://github.com/prabhuc94/flexiconnect
 
 environment:
@@ -11,12 +11,12 @@ dependencies:
   flutter:
     sdk: flutter
 
-  netcore_signalr: ^0.0.3
+  signalr_netcore: 1.3.4
   logger: ^2.0.2+1
   mixin_logger: ^0.0.6
-  flexipeer: ^0.0.4
+#  flexipeer: ^0.0.4
   events_emitter: ^0.5.2
-  flutter_webrtc: ^0.9.46
+#  flutter_webrtc: ^0.9.46
 
 dev_dependencies:
   flutter_test:

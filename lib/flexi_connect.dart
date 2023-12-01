@@ -4,7 +4,7 @@ import 'dart:async';
 import 'package:flexi_connect/console.dart';
 import 'package:flexi_connect/flexi_signal_model.dart';
 import 'package:flutter/foundation.dart';
-import 'package:netcore_signalr/signalr_client.dart';
+import 'package:signalr_netcore/signalr_client.dart';
 
 class SignalR {
   final String connectionUrl;
@@ -46,8 +46,7 @@ class SignalR {
 
   Stream<List<Object?>?> get argumentStream => _listenArgumentController.stream;
 
-  Stream<HubConnectionState> get stateStream => _connection.stateStream;
-  ValueNotifier<HubConnectionState?> connectionState =
+  ValueNotifier<HubConnectionState> connectionState =
       ValueNotifier(HubConnectionState.Disconnected);
 
   HubConnectionState? get _state => _connection.state;
@@ -117,9 +116,10 @@ class SignalR {
 
   Future<Object?> invoke(String methodName, {List<Object>? args}) async {
     if (_state == HubConnectionState.Connected) {
-      await _connection.invoke(methodName, args: args);
+      return await _connection.invoke(methodName, args: args);
     } else {
       onError?.call("Connection not in connected state");
+      return null;
     }
   }
 

@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:events_emitter/emitters/stream_event_emitter.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
+// import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:flexi_connect/randomizer.dart';
-import 'package:flexipeer/flexidart.dart';
+// import 'package:flexipeer/flexidart.dart';
 
 enum Peer {
   open,
@@ -14,6 +14,7 @@ enum Peer {
   stream,
 }
 
+/*
 class PeerJs extends StreamEventEmitter {
   PeerJs._() {
     _reConnectTimer();
@@ -174,4 +175,4 @@ class _CallerOptions extends CallOption {
   _CallerOptions({dynamic data}) {
     metadata = data;
   }
-}
+}*/

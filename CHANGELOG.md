@@ -31,3 +31,6 @@
 
 ## 0.0.9
 - Timeout increased
+
+## 0.0.10
+- Peer disabled
