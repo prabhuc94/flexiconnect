@@ -2,8 +2,8 @@ library flexi_connect;
 
 import 'dart:async';
 import 'package:flexi_connect/console.dart';
-import 'package:flexi_connect/flexi_signal_model.dart';
 import 'package:flutter/foundation.dart';
+import 'package:signalr_netcore/errors.dart';
 import 'package:signalr_netcore/signalr_client.dart';
 
 class SignalR {
@@ -11,94 +11,115 @@ class SignalR {
 
   static const List<int> DEFAULT_RETRY_DELAYS = [2000, 5000, 10000, 20000];
 
+  HubConnectionState? get _state => _connection.state;
+
+  HubConnectionState? get conn => _connection.state;
+  bool get _isConnected => (_state == HubConnectionState.Connected);
+  bool get _isDisconnected => (_state == HubConnectionState.Disconnected);
+
   SignalR(
       {required this.connectionUrl,
       List<int> retryDelays = DEFAULT_RETRY_DELAYS,
       HttpConnectionOptions? options,
-      HttpTransportType? transportType, bool autoReconnect = false}) {
+      HttpTransportType? transportType,
+      required List<String> listeners,
+      required Function(List<Object?>?) onArgument}) {
+    _onArguments = onArgument;
     _connection = HubConnectionBuilder()
         .withUrl(connectionUrl, options: options, transportType: transportType)
         .withAutomaticReconnect(retryDelays: retryDelays)
         .build();
-    _connection.keepAliveIntervalInMilliseconds = const Duration(minutes: 1).inMilliseconds;
-    _connection.serverTimeoutInMilliseconds = const Duration(minutes: 2).inMilliseconds;
-    if (autoReconnect) {
-      _initTimer();
+
+    _connection
+      ..onclose(({error}) => _catchError(error))
+      ..onreconnecting(({error}) => _catchError(error))
+      ..onreconnected(({connectionId}) => connectionState.value = (_state ?? HubConnectionState.Disconnected));
+    if (listeners.isNotEmpty) {
+      for (var element in listeners) {
+        _connection.on(element, _handleArgument);
+      }
     }
   }
 
-  void _initTimer() {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(minutes: 1), (timer) async {
-      if (_connection.state != HubConnectionState.Connected || _connection.state != HubConnectionState.Connecting) {
-        await reconnect();
-      }
-    });
+  void start({required List<InvokeMethods> invoker}) async {
+    if (invoker.isEmpty) {
+      throw AbortError("Invoker is required");
+    }
+
+    _invokers = invoker;
+
+    _connect();
   }
 
-  Timer? _timer;
+  void _handleArgument(List<Object?>? args) {
+    _onArguments?.call(args);
+  }
 
   late HubConnection _connection;
-
-  final List<InvokeModel> _invokeModel = [];
-  final StreamController<List<Object?>?> _listenArgumentController =
-      StreamController.broadcast();
-
-  Stream<List<Object?>?> get argumentStream => _listenArgumentController.stream;
 
   ValueNotifier<HubConnectionState> connectionState =
       ValueNotifier(HubConnectionState.Disconnected);
 
-  HubConnectionState? get _state => _connection.state;
-
   Function(dynamic)? onError;
 
-  void init() {
-    _connection
-      ..onclose(({error}) {
-        if (error != null) {
-          console.e("Close error $error", time: DateTime.now());
-          reconnect();
-        } else {
-          console.i("Connection closed without an error.",
-              time: DateTime.now());
-        }
-      })
-      ..onreconnecting(({error}) {
-        console.e("Reconnecting error $error");
-      })
-      ..onreconnected(({connectionId}) {
-        console.e("Reconnected Id $connectionId");
-      })
-      ..start()?.catchError((e){
-        console.e("Connecting error $e");
-      });
+  Function(List<Object?>?)? _onArguments;
+
+  List<InvokeMethods> _invokers = [];
+
+  void _catchError(e) {
+    console.e("Close error $e", time: DateTime.now());
+    if ((e is HttpError) || (e is GeneralError)) {
+      reConnect();
+    }
+    _updateStatus();
   }
 
-  Future<void>? reconnect() async {
-    await _connection.stop();
-    await _connection.start();
+  void _updateStatus() => connectionState.value = _state ?? HubConnectionState.Disconnected;
+
+  void reConnect() async {
+    try {
+      disconnect();
+      Future.delayed(const Duration(seconds: 15), _connect);
+    } catch(e) {
+      _catchError(e);
+    }
   }
 
-  void _listenInvoke() async {
-    if (_invokeModel.isNotEmpty) {
-      for (var element in _invokeModel) {
-        if (element.methodName != null &&
-            (element.methodName?.isNotEmpty ?? false) &&
-            element.arguments != null &&
-            (element.arguments?.isNotEmpty ?? false)) {
-          await _connection.invoke("${element.methodName}",
-              args: element.arguments).catchError((e) => onError?.call(e));
-        }
+  void _connect({List<InvokeMethods>? invoker}) async {
+    if ((_invokers.isEmpty) && (invoker?.isEmpty ?? false)) {
+      throw AbortError("Invoking values missing!");
+    } else {
+      _invokers = (invoker ?? []);
+    }
+    try {
+      if (_isDisconnected) {
+        await _connection.start();
       }
+      _initInvoke();
+      _updateStatus();
+    } catch(e) {
+      _catchError(e);
+    }
+  }
 
-      for (var element in _invokeModel) {
-        if (element.listenMethodName != null &&
-            (element.listenMethodName?.isNotEmpty ?? false)) {
-          _connection.on("${element.methodName}",
-              (arguments) => _listenArgumentController.sink.add(arguments));
+  void disconnect() async {
+    try {
+      await _connection.stop();
+      _updateStatus();
+    } catch(e) {
+      _catchError(e);
+    }
+  }
+
+  void _initInvoke() async {
+    try {
+      if (_isConnected && _invokers.isNotEmpty) {
+        for (var element in _invokers) {
+          await _connection.invoke(element.methodName, args: element.args);
         }
       }
+    } catch (e) {
+      _catchError(e);
     }
   }
 
@@ -115,45 +136,54 @@ class SignalR {
       _connection.stream(methodName, args);
 
   Future<Object?> invoke(String methodName, {List<Object>? args}) async {
-    if (_state == HubConnectionState.Connected) {
-      return await _connection.invoke(methodName, args: args);
-    } else {
-      onError?.call("Connection not in connected state");
-      return null;
+    try {
+      if (_isConnected) {
+        return await _connection.invoke(methodName, args: args);
+      } else {
+        onError?.call("Connection not in connected state");
+        return null;
+      }
+    } catch (e) {
+      _catchError(e);
     }
+    return null;
   }
 
   Future<void> send(String methodName, {List<Object>? args}) async {
-    if (_state == HubConnectionState.Connected) {
-      await _connection.send(methodName, args: args);
-    } else {
-      onError?.call("Connection not in connected state");
+    try {
+      if (_isConnected) {
+        await _connection.send(methodName, args: args);
+      } else {
+        onError?.call("Connection not in connected state");
+      }
+    } catch (e) {
+      _catchError(e);
     }
   }
 
   void emit(
       String methodName, String receiverMethodName, String message) async {
-    if (_state == HubConnectionState.Connected) {
-      await _connection.invoke(methodName, args: [receiverMethodName, message]);
-    } else {
-      onError?.call("Connection not in connected state");
-      console.e("Connection not in Connected state [${_state?.name}]");
-    }
-  }
-
-  void setInvokeModels({required List<InvokeModel> model}) {
-    if (_state == HubConnectionState.Connected) {
-      _listenInvoke();
-    } else if (_state == HubConnectionState.Disconnected) {
-      reconnect()?.whenComplete(() => _listenInvoke());
+    try {
+      if (_isConnected) {
+        await _connection.invoke(methodName, args: [receiverMethodName, message]);
+      } else {
+        onError?.call("Connection not in connected state");
+        console.e("Connection not in Connected state [${_state?.name}]");
+      }
+    } catch (e) {
+      _catchError(e);
     }
   }
 
   void dispose() {
-    _timer?.cancel();
-    _connection.stop();
-    connectionState.dispose();
-    _invokeModel.clear();
-    _listenArgumentController.close();
+    disconnect();
+    _invokers.clear();
   }
+}
+
+class InvokeMethods {
+  late String methodName;
+  late List<Object>? args;
+
+  InvokeMethods(this.methodName, this.args);
 }

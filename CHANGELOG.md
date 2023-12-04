@@ -34,3 +34,6 @@
 
 ## 0.0.10
 - Peer disabled
+
+## 0.0.11
+- SignalR remodified
